@@ -6,33 +6,26 @@ type SummaryCardProps = {
   stats: string[];
 };
 
+type GraphBar = {
+  height: string;
+  label: string;
+};
+
 type GraphCardProps = {
   title: string;
-  bars: string[];
+  bars: GraphBar[];
   caption: string;
 };
 
 type CheckIn = {
   id: string;
   createdAt: string;
+  hour?: number;
   focusLevel: number;
   energyLevel: number;
 };
 
 type RatingField = "energyLevel" | "focusLevel";
-
-const graphData: GraphCardProps[] = [
-  {
-    title: "Focus by Hour",
-    bars: ["40%", "70%", "55%", "85%", "60%"],
-    caption: "Placeholder chart for average focus levels.",
-  },
-  {
-    title: "Energy by Hour",
-    bars: ["65%", "50%", "75%", "45%", "80%"],
-    caption: "Placeholder chart for average energy levels.",
-  },
-];
 
 function loadCheckIns(): CheckIn[] {
   const savedCheckIns = localStorage.getItem("checkIns");
@@ -81,6 +74,45 @@ function averageToOutput(average: number | null, field: RatingField): string {
   return `Average ${currField}: ${average.toFixed(1)}/5`;
 }
 
+function averageToBarHeight(average: number | null): string {
+  if (average === null) {
+    return "0%";
+  }
+
+  return `${(average / 5) * 100}%`;
+}
+
+function getCheckInHour(checkIn: CheckIn): number {
+  return checkIn.hour ?? new Date(checkIn.createdAt).getHours();
+}
+
+function formatHour(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+
+  return date.toLocaleTimeString([], { hour: "numeric" });
+}
+
+function getHourlyAverageBars(
+  checkIns: CheckIn[],
+  field: RatingField
+): GraphBar[] {
+  const latestHours = Array.from(
+    new Set(checkIns.map((checkIn) => getCheckInHour(checkIn)))
+  ).slice(0, 8);
+
+  return latestHours.map((hour) => {
+    const hourlyCheckIns = checkIns.filter(
+      (checkIn) => getCheckInHour(checkIn) === hour
+    );
+
+    return {
+      height: averageToBarHeight(getAverage(hourlyCheckIns, field)),
+      label: formatHour(hour),
+    };
+  });
+}
+
 function SummaryCard({ title, stats }: SummaryCardProps) {
   return (
     <div className="card summary-card">
@@ -99,12 +131,14 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
       <h2>{title}</h2>
 
       <div className="graph-placeholder">
-        {bars.map((height, index) => (
-          <div
-            key={`${title}-${index}`}
-            className="bar"
-            style={{ height }}
-          ></div>
+        {bars.map((bar) => (
+          <div className="bar-group" key={`${title}-${bar.label}`}>
+            <div
+              className="bar"
+              style={{ height: bar.height }}
+            ></div>
+            <span className="bar-label">{bar.label}</span>
+          </div>
         ))}
       </div>
 
@@ -124,6 +158,18 @@ function App() {
   const totalChecks = checkIns.length;
   const averageFocus = getAverage(checkIns, "focusLevel")
   const averageEnergy = getAverage(checkIns, "energyLevel")
+  const graphData: GraphCardProps[] = [
+    {
+      title: "Focus by Hour",
+      bars: getHourlyAverageBars(checkIns, "focusLevel"),
+      caption: averageToOutput(averageFocus, "focusLevel"),
+    },
+    {
+      title: "Energy by Hour",
+      bars: getHourlyAverageBars(checkIns, "energyLevel"),
+      caption: averageToOutput(averageEnergy, "energyLevel"),
+    },
+  ];
 
   const summaryData: SummaryCardProps[] = [
   {
@@ -171,6 +217,7 @@ function App() {
     const newCheckIn: CheckIn = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      hour: new Date().getHours(),
       focusLevel,
       energyLevel,
     };

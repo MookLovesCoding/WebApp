@@ -195,10 +195,25 @@ header {
   background: var(--accent-background);
 }
 
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  height: 100%;
+}
+
 .bar {
   width: 32px;
   border-radius: 6px 6px 0 0;
   background: var(--accent);
+}
+
+.bar-label {
+  min-height: 18px;
+  font-size: 12px;
+  opacity: 0.75;
 }
 
 .graph-caption {
