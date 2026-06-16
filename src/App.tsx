@@ -19,32 +19,7 @@ type CheckIn = {
   energyLevel: number;
 };
 
-const summaryData: SummaryCardProps[] = [
-  {
-    title: "Today's Summary",
-    stats: [
-      "Average focus: 4",
-      "Average energy: 3",
-      "Total focus time: 45 minutes",
-    ],
-  },
-  {
-    title: "Weekly Summary",
-    stats: [
-      "Average focus: 3.8",
-      "Average energy: 3.2",
-      "Total focus time: 285 minutes",
-    ],
-  },
-  {
-    title: "Monthly Summary",
-    stats: [
-      "Average focus: 3.6",
-      "Average energy: 3.1",
-      "Total focus time: 1200 minutes",
-    ],
-  },
-];
+type RatingField = "energyLevel" | "focusLevel";
 
 const graphData: GraphCardProps[] = [
   {
@@ -81,6 +56,29 @@ function formatTime(totalSeconds: number): string {
     2,
     "0"
   )}`;
+}
+
+function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
+  if (checkIns.length === 0) {
+    return null;
+  }
+
+  let sum = 0;
+
+  for (const checkIn of checkIns) {
+    sum += checkIn[field];
+  }
+
+  return sum / checkIns.length;
+}
+
+function averageToOutput(average: number | null, field: RatingField): string {
+  const currField = field.replace("Level", "")
+  if (average === null) {
+    return `Average ${currField}: --`;
+  }
+
+  return `Average ${currField}: ${average.toFixed(1)}/5`;
 }
 
 function SummaryCard({ title, stats }: SummaryCardProps) {
@@ -122,6 +120,38 @@ function App() {
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
+
+  const totalChecks = checkIns.length;
+  const averageFocus = getAverage(checkIns, "focusLevel")
+  const averageEnergy = getAverage(checkIns, "energyLevel")
+
+  const summaryData: SummaryCardProps[] = [
+  {
+    title: "Today's Summary",
+    stats: [
+      `Check ins logged: ${totalChecks}`,
+      `${averageToOutput(averageFocus, "focusLevel")}`,
+      `${averageToOutput(averageEnergy, "energyLevel")}`,
+      "Total focus time: 45 minutes",
+    ],
+  },
+  {
+    title: "Weekly Summary",
+    stats: [
+      "Average focus: 3.8",
+      "Average energy: 3.2",
+      "Total focus time: 285 minutes",
+    ],
+  },
+  {
+    title: "Monthly Summary",
+    stats: [
+      "Average focus: 3.6",
+      "Average energy: 3.1",
+      "Total focus time: 1200 minutes",
+    ],
+  },
+];
 
   useEffect(() => {
     localStorage.setItem("checkIns", JSON.stringify(checkIns));
