@@ -48,6 +48,10 @@ header {
   outline-offset: 2px;
 }
 
+.clear-history-button {
+  margin-top: 12px;
+}
+
 /* Check-in sliders */
 
 .slider-group {

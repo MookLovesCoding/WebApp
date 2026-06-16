@@ -153,6 +153,7 @@ function App() {
   const [checkInMessage, setCheckInMessage] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
 
   const totalChecks = checkIns.length;
@@ -303,30 +304,45 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>Check-In History</h2>
-
-        {checkIns.length > 0 && (
-          <button className="counter" onClick={handleClearCheckIns}>
-            Clear History
+        <div className="section-header">
+          <h2>Check-In History</h2>
+          <button
+            className="toggle-button counter"
+            onClick={() => setIsHistoryCollapsed((value) => !value)}
+          >
+            {isHistoryCollapsed ? "Show" : "Hide"}
           </button>
-        )}
+        </div>
 
-        {checkIns.length === 0 ? (
-          <p>No check-ins yet. Add your first one above.</p>
-        ) : (
-          <div className="history-list">
-            {checkIns.map((checkIn) => (
-              <div className="history-item" key={checkIn.id}>
-                <p>
-                  <strong>
-                    {new Date(checkIn.createdAt).toLocaleString()}
-                  </strong>
-                </p>
-                <p>Focus: {checkIn.focusLevel}/5</p>
-                <p>Energy: {checkIn.energyLevel}/5</p>
+        {!isHistoryCollapsed && (
+          <>
+            {checkIns.length > 0 && (
+              <button
+                className="counter clear-history-button"
+                onClick={handleClearCheckIns}
+              >
+                Clear History
+              </button>
+            )}
+
+            {checkIns.length === 0 ? (
+              <p>No check-ins yet. Add your first one above.</p>
+            ) : (
+              <div className="history-list">
+                {checkIns.map((checkIn) => (
+                  <div className="history-item" key={checkIn.id}>
+                    <p>
+                      <strong>
+                        {new Date(checkIn.createdAt).toLocaleString()}
+                      </strong>
+                    </p>
+                    <p>Focus: {checkIn.focusLevel}/5</p>
+                    <p>Energy: {checkIn.energyLevel}/5</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
 
