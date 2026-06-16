@@ -3,6 +3,10 @@
   flex-direction: column;
   gap: 20px;
   padding: 32px 20px;
+  width: 100%;
+  max-width: 1126px;
+  margin: auto;
+  text-align: center;
 }
 
 header {
@@ -65,7 +69,7 @@ header {
   min-width: 150px;
   color: var(--text-heading);
   font-weight: 500;
-  text-align: right;
+  text-align: center;
 }
 
 .slider {
@@ -162,7 +166,7 @@ header {
 }
 
 .summary-card {
-  text-align: left;
+  text-align: center;
 }
 
 /* Graphs */
@@ -176,7 +180,7 @@ header {
 }
 
 .graph-card {
-  text-align: left;
+  text-align: center;
 }
 
 .graph-placeholder {
@@ -237,4 +241,22 @@ header {
     width: 100%;
     max-width: 240px;
   }
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.history-item {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+}
+
+.history-item p {
+  margin: 4px 0;
 }

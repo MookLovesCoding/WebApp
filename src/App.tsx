@@ -1,7 +1,25 @@
 import "./App.css";
 import { useEffect, useState } from "react";
 
-const summaryData = [
+type SummaryCardProps = {
+  title: string;
+  stats: string[];
+};
+
+type GraphCardProps = {
+  title: string;
+  bars: string[];
+  caption: string;
+};
+
+type CheckIn = {
+  id: string;
+  createdAt: string;
+  focusLevel: number;
+  energyLevel: number;
+};
+
+const summaryData: SummaryCardProps[] = [
   {
     title: "Today's Summary",
     stats: [
@@ -28,7 +46,7 @@ const summaryData = [
   },
 ];
 
-const graphData = [
+const graphData: GraphCardProps[] = [
   {
     title: "Focus by Hour",
     bars: ["40%", "70%", "55%", "85%", "60%"],
@@ -41,7 +59,21 @@ const graphData = [
   },
 ];
 
-function formatTime(totalSeconds) {
+function loadCheckIns(): CheckIn[] {
+  const savedCheckIns = localStorage.getItem("checkIns");
+
+  if (!savedCheckIns) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(savedCheckIns) as CheckIn[];
+  } catch {
+    return [];
+  }
+}
+
+function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
@@ -51,7 +83,7 @@ function formatTime(totalSeconds) {
   )}`;
 }
 
-function SummaryCard({ title, stats }) {
+function SummaryCard({ title, stats }: SummaryCardProps) {
   return (
     <div className="card summary-card">
       <h2>{title}</h2>
@@ -63,7 +95,7 @@ function SummaryCard({ title, stats }) {
   );
 }
 
-function GraphCard({ title, bars, caption }) {
+function GraphCard({ title, bars, caption }: GraphCardProps) {
   return (
     <div className="card graph-card">
       <h2>{title}</h2>
@@ -89,19 +121,33 @@ function App() {
   const [checkInMessage, setCheckInMessage] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
+
+  useEffect(() => {
+    localStorage.setItem("checkIns", JSON.stringify(checkIns));
+  }, [checkIns]);
 
   useEffect(() => {
     if (!isTimerRunning) return;
 
-    const intervalId = setInterval(() => {
+    const intervalId = window.setInterval(() => {
       setTimerSeconds((currentSeconds) => currentSeconds + 1);
     }, 1000);
 
-    return () => clearInterval(intervalId);
+    return () => window.clearInterval(intervalId);
   }, [isTimerRunning]);
 
   function handleAddCheckIn() {
-    const messages = [
+    const newCheckIn: CheckIn = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      focusLevel,
+      energyLevel,
+    };
+
+    setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
+
+    const messages: string[] = [
       `Great check-in! Focus: ${focusLevel}/5, Energy: ${energyLevel}/5 ✓`,
       `Logged! You're at ${focusLevel} focus and ${energyLevel} energy.`,
       `Check-in recorded for focus ${focusLevel} and energy ${energyLevel}!`,
@@ -111,7 +157,12 @@ function App() {
     const randomIndex = Math.floor(Math.random() * messages.length);
 
     setCheckInMessage(messages[randomIndex]);
-    setTimeout(() => setCheckInMessage(""), 3000);
+    window.setTimeout(() => setCheckInMessage(""), 3000);
+  }
+
+  function handleClearCheckIns() {
+    setCheckIns([]);
+    localStorage.removeItem("checkIns");
   }
 
   function handleStartTimer() {
@@ -171,6 +222,34 @@ function App() {
 
         {checkInMessage && (
           <p className="check-in-message">{checkInMessage}</p>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Check-In History</h2>
+
+        {checkIns.length > 0 && (
+          <button className="counter" onClick={handleClearCheckIns}>
+            Clear History
+          </button>
+        )}
+
+        {checkIns.length === 0 ? (
+          <p>No check-ins yet. Add your first one above.</p>
+        ) : (
+          <div className="history-list">
+            {checkIns.map((checkIn) => (
+              <div className="history-item" key={checkIn.id}>
+                <p>
+                  <strong>
+                    {new Date(checkIn.createdAt).toLocaleString()}
+                  </strong>
+                </p>
+                <p>Focus: {checkIn.focusLevel}/5</p>
+                <p>Energy: {checkIn.energyLevel}/5</p>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 
