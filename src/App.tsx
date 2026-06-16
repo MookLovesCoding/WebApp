@@ -41,6 +41,30 @@ function loadCheckIns(): CheckIn[] {
   }
 }
 
+function createDemoCheckIns(): CheckIn[] {
+  const demoValues = [
+    { hour: 9, focusLevel: 1, energyLevel: 5 },
+    { hour: 10, focusLevel: 5, energyLevel: 1 },
+    { hour: 11, focusLevel: 2, energyLevel: 4 },
+    { hour: 12, focusLevel: 4, energyLevel: 2 },
+    { hour: 13, focusLevel: 1, energyLevel: 3 },
+    { hour: 14, focusLevel: 5, energyLevel: 1 },
+    { hour: 15, focusLevel: 2, energyLevel: 5 },
+    { hour: 16, focusLevel: 4, energyLevel: 2 },
+  ];
+
+  return demoValues.map((demoValue) => {
+    const createdAt = new Date();
+    createdAt.setHours(demoValue.hour, 0, 0, 0);
+
+    return {
+      id: crypto.randomUUID(),
+      createdAt: createdAt.toISOString(),
+      ...demoValue,
+    };
+  });
+}
+
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -99,7 +123,9 @@ function getHourlyAverageBars(
 ): GraphBar[] {
   const latestHours = Array.from(
     new Set(checkIns.map((checkIn) => getCheckInHour(checkIn)))
-  ).slice(0, 8);
+  )
+    .slice(0, 8)
+    .sort((firstHour, secondHour) => firstHour - secondHour);
 
   return latestHours.map((hour) => {
     const hourlyCheckIns = checkIns.filter(
@@ -243,6 +269,10 @@ function App() {
     localStorage.removeItem("checkIns");
   }
 
+  function handleLoadDemoData() {
+    setCheckIns(createDemoCheckIns());
+  }
+
   function handleStartTimer() {
     setIsTimerRunning(true);
   }
@@ -294,9 +324,15 @@ function App() {
           </div>
         </div>
 
-        <button className="counter" onClick={handleAddCheckIn}>
-          Add Check-In
-        </button>
+        <div className="button-row">
+          <button className="counter" onClick={handleAddCheckIn}>
+            Add Check-In
+          </button>
+
+          <button className="counter" onClick={handleLoadDemoData}>
+            Load Demo Data
+          </button>
+        </div>
 
         {checkInMessage && (
           <p className="check-in-message">{checkInMessage}</p>
