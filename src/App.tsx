@@ -1,5 +1,5 @@
 import "./App.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SummaryCardProps = {
   title: string;
@@ -26,6 +26,12 @@ type CheckIn = {
 };
 
 type RatingField = "energyLevel" | "focusLevel";
+
+type CheckInNotification = {
+  id: number;
+  message: string;
+  isClosing: boolean;
+};
 
 function loadCheckIns(): CheckIn[] {
   const savedCheckIns = localStorage.getItem("checkIns");
@@ -87,6 +93,35 @@ function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
   }
 
   return sum / checkIns.length;
+}
+
+function getStartOfToday(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  return date;
+}
+
+function getStartOfWeek(): Date {
+  const date = getStartOfToday();
+  date.setDate(date.getDate() - date.getDay());
+
+  return date;
+}
+
+function getStartOfMonth(): Date {
+  const date = getStartOfToday();
+  date.setDate(1);
+
+  return date;
+}
+
+function filterCheckInsFromDate(checkIns: CheckIn[], startDate: Date): CheckIn[] {
+  const startTime = startDate.getTime();
+
+  return checkIns.filter(
+    (checkIn) => new Date(checkIn.createdAt).getTime() >= startTime
+  );
 }
 
 function averageToOutput(average: number | null, field: RatingField): string {
@@ -176,13 +211,19 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
 function App() {
   const [focusLevel, setFocusLevel] = useState(3);
   const [energyLevel, setEnergyLevel] = useState(3);
-  const [checkInMessage, setCheckInMessage] = useState("");
+  const [checkInNotification, setCheckInNotification] =
+    useState<CheckInNotification | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
+  const notificationIdRef = useRef(0);
+  const closeNotificationTimerRef = useRef<number | null>(null);
+  const clearNotificationTimerRef = useRef<number | null>(null);
 
-  const totalChecks = checkIns.length;
+  const todaysCheckIns = filterCheckInsFromDate(checkIns, getStartOfToday());
+  const weeklyCheckIns = filterCheckInsFromDate(checkIns, getStartOfWeek());
+  const monthlyCheckIns = filterCheckInsFromDate(checkIns, getStartOfMonth());
   const averageFocus = getAverage(checkIns, "focusLevel")
   const averageEnergy = getAverage(checkIns, "energyLevel")
   const graphData: GraphCardProps[] = [
@@ -202,26 +243,28 @@ function App() {
   {
     title: "Today's Summary",
     stats: [
-      `Check ins logged: ${totalChecks}`,
-      `${averageToOutput(averageFocus, "focusLevel")}`,
-      `${averageToOutput(averageEnergy, "energyLevel")}`,
-      "Total focus time: 45 minutes",
+      `Check ins logged: ${todaysCheckIns.length}`,
+      `${averageToOutput(getAverage(todaysCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(todaysCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
     ],
   },
   {
     title: "Weekly Summary",
     stats: [
-      "Average focus: 3.8",
-      "Average energy: 3.2",
-      "Total focus time: 285 minutes",
+      `Check ins logged: ${weeklyCheckIns.length}`,
+      `${averageToOutput(getAverage(weeklyCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(weeklyCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
     ],
   },
   {
     title: "Monthly Summary",
     stats: [
-      "Average focus: 3.6",
-      "Average energy: 3.1",
-      "Total focus time: 1200 minutes",
+      `Check ins logged: ${monthlyCheckIns.length}`,
+      `${averageToOutput(getAverage(monthlyCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(monthlyCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
     ],
   },
 ];
@@ -239,6 +282,57 @@ function App() {
 
     return () => window.clearInterval(intervalId);
   }, [isTimerRunning]);
+
+  useEffect(() => {
+    return () => {
+      if (closeNotificationTimerRef.current !== null) {
+        window.clearTimeout(closeNotificationTimerRef.current);
+      }
+
+      if (clearNotificationTimerRef.current !== null) {
+        window.clearTimeout(clearNotificationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showCheckInNotification(message: string) {
+    if (closeNotificationTimerRef.current !== null) {
+      window.clearTimeout(closeNotificationTimerRef.current);
+    }
+
+    if (clearNotificationTimerRef.current !== null) {
+      window.clearTimeout(clearNotificationTimerRef.current);
+    }
+
+    const notificationId = notificationIdRef.current + 1;
+    notificationIdRef.current = notificationId;
+
+    setCheckInNotification({
+      id: notificationId,
+      message,
+      isClosing: false,
+    });
+
+    closeNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return { ...currentNotification, isClosing: true };
+      });
+    }, 2700);
+
+    clearNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return null;
+      });
+    }, 3000);
+  }
 
   function handleAddCheckIn() {
     const newCheckIn: CheckIn = {
@@ -260,8 +354,7 @@ function App() {
 
     const randomIndex = Math.floor(Math.random() * messages.length);
 
-    setCheckInMessage(messages[randomIndex]);
-    window.setTimeout(() => setCheckInMessage(""), 3000);
+    showCheckInNotification(messages[randomIndex]);
   }
 
   function handleClearCheckIns() {
@@ -271,6 +364,7 @@ function App() {
 
   function handleLoadDemoData() {
     setCheckIns(createDemoCheckIns());
+    showCheckInNotification("demo data loaded, have fun!");
   }
 
   function handleStartTimer() {
@@ -334,8 +428,14 @@ function App() {
           </button>
         </div>
 
-        {checkInMessage && (
-          <p className="check-in-message">{checkInMessage}</p>
+        {checkInNotification && (
+          <p
+            className={`check-in-message${
+              checkInNotification.isClosing ? " check-in-message-closing" : ""
+            }`}
+          >
+            {checkInNotification.message}
+          </p>
         )}
       </section>
 
