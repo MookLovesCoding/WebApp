@@ -1,63 +1,37 @@
 import "./App.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SummaryCardProps = {
   title: string;
   stats: string[];
 };
 
+type GraphBar = {
+  height: string;
+  label: string;
+};
+
 type GraphCardProps = {
   title: string;
-  bars: string[];
+  bars: GraphBar[];
   caption: string;
 };
 
 type CheckIn = {
   id: string;
   createdAt: string;
+  hour?: number;
   focusLevel: number;
   energyLevel: number;
 };
 
-const summaryData: SummaryCardProps[] = [
-  {
-    title: "Today's Summary",
-    stats: [
-      "Average focus: 4",
-      "Average energy: 3",
-      "Total focus time: 45 minutes",
-    ],
-  },
-  {
-    title: "Weekly Summary",
-    stats: [
-      "Average focus: 3.8",
-      "Average energy: 3.2",
-      "Total focus time: 285 minutes",
-    ],
-  },
-  {
-    title: "Monthly Summary",
-    stats: [
-      "Average focus: 3.6",
-      "Average energy: 3.1",
-      "Total focus time: 1200 minutes",
-    ],
-  },
-];
+type RatingField = "energyLevel" | "focusLevel";
 
-const graphData: GraphCardProps[] = [
-  {
-    title: "Focus by Hour",
-    bars: ["40%", "70%", "55%", "85%", "60%"],
-    caption: "Placeholder chart for average focus levels.",
-  },
-  {
-    title: "Energy by Hour",
-    bars: ["65%", "50%", "75%", "45%", "80%"],
-    caption: "Placeholder chart for average energy levels.",
-  },
-];
+type CheckInNotification = {
+  id: number;
+  message: string;
+  isClosing: boolean;
+};
 
 function loadCheckIns(): CheckIn[] {
   const savedCheckIns = localStorage.getItem("checkIns");
@@ -73,6 +47,30 @@ function loadCheckIns(): CheckIn[] {
   }
 }
 
+function createDemoCheckIns(): CheckIn[] {
+  const demoValues = [
+    { hour: 9, focusLevel: 1, energyLevel: 5 },
+    { hour: 10, focusLevel: 5, energyLevel: 1 },
+    { hour: 11, focusLevel: 2, energyLevel: 4 },
+    { hour: 12, focusLevel: 4, energyLevel: 2 },
+    { hour: 13, focusLevel: 1, energyLevel: 3 },
+    { hour: 14, focusLevel: 5, energyLevel: 1 },
+    { hour: 15, focusLevel: 2, energyLevel: 5 },
+    { hour: 16, focusLevel: 4, energyLevel: 2 },
+  ];
+
+  return demoValues.map((demoValue) => {
+    const createdAt = new Date();
+    createdAt.setHours(demoValue.hour, 0, 0, 0);
+
+    return {
+      id: crypto.randomUUID(),
+      createdAt: createdAt.toISOString(),
+      ...demoValue,
+    };
+  });
+}
+
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -81,6 +79,99 @@ function formatTime(totalSeconds: number): string {
     2,
     "0"
   )}`;
+}
+
+function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
+  if (checkIns.length === 0) {
+    return null;
+  }
+
+  let sum = 0;
+
+  for (const checkIn of checkIns) {
+    sum += checkIn[field];
+  }
+
+  return sum / checkIns.length;
+}
+
+function getStartOfToday(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  return date;
+}
+
+function getStartOfWeek(): Date {
+  const date = getStartOfToday();
+  date.setDate(date.getDate() - date.getDay());
+
+  return date;
+}
+
+function getStartOfMonth(): Date {
+  const date = getStartOfToday();
+  date.setDate(1);
+
+  return date;
+}
+
+function filterCheckInsFromDate(checkIns: CheckIn[], startDate: Date): CheckIn[] {
+  const startTime = startDate.getTime();
+
+  return checkIns.filter(
+    (checkIn) => new Date(checkIn.createdAt).getTime() >= startTime
+  );
+}
+
+function averageToOutput(average: number | null, field: RatingField): string {
+  const currField = field.replace("Level", "")
+  if (average === null) {
+    return `Average ${currField}: --`;
+  }
+
+  return `Average ${currField}: ${average.toFixed(1)}/5`;
+}
+
+function averageToBarHeight(average: number | null): string {
+  if (average === null) {
+    return "0%";
+  }
+
+  return `${(average / 5) * 100}%`;
+}
+
+function getCheckInHour(checkIn: CheckIn): number {
+  return checkIn.hour ?? new Date(checkIn.createdAt).getHours();
+}
+
+function formatHour(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+
+  return date.toLocaleTimeString([], { hour: "numeric" });
+}
+
+function getHourlyAverageBars(
+  checkIns: CheckIn[],
+  field: RatingField
+): GraphBar[] {
+  const latestHours = Array.from(
+    new Set(checkIns.map((checkIn) => getCheckInHour(checkIn)))
+  )
+    .slice(0, 8)
+    .sort((firstHour, secondHour) => firstHour - secondHour);
+
+  return latestHours.map((hour) => {
+    const hourlyCheckIns = checkIns.filter(
+      (checkIn) => getCheckInHour(checkIn) === hour
+    );
+
+    return {
+      height: averageToBarHeight(getAverage(hourlyCheckIns, field)),
+      label: formatHour(hour),
+    };
+  });
 }
 
 function SummaryCard({ title, stats }: SummaryCardProps) {
@@ -101,12 +192,14 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
       <h2>{title}</h2>
 
       <div className="graph-placeholder">
-        {bars.map((height, index) => (
-          <div
-            key={`${title}-${index}`}
-            className="bar"
-            style={{ height }}
-          ></div>
+        {bars.map((bar) => (
+          <div className="bar-group" key={`${title}-${bar.label}`}>
+            <div
+              className="bar"
+              style={{ height: bar.height }}
+            ></div>
+            <span className="bar-label">{bar.label}</span>
+          </div>
         ))}
       </div>
 
@@ -118,10 +211,63 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
 function App() {
   const [focusLevel, setFocusLevel] = useState(3);
   const [energyLevel, setEnergyLevel] = useState(3);
-  const [checkInMessage, setCheckInMessage] = useState("");
+  const [checkInNotification, setCheckInNotification] =
+    useState<CheckInNotification | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
+  const notificationIdRef = useRef(0);
+  const closeNotificationTimerRef = useRef<number | null>(null);
+  const clearNotificationTimerRef = useRef<number | null>(null);
+
+  const todaysCheckIns = filterCheckInsFromDate(checkIns, getStartOfToday());
+  const weeklyCheckIns = filterCheckInsFromDate(checkIns, getStartOfWeek());
+  const monthlyCheckIns = filterCheckInsFromDate(checkIns, getStartOfMonth());
+  const averageFocus = getAverage(checkIns, "focusLevel")
+  const averageEnergy = getAverage(checkIns, "energyLevel")
+  const graphData: GraphCardProps[] = [
+    {
+      title: "Focus by Hour",
+      bars: getHourlyAverageBars(checkIns, "focusLevel"),
+      caption: averageToOutput(averageFocus, "focusLevel"),
+    },
+    {
+      title: "Energy by Hour",
+      bars: getHourlyAverageBars(checkIns, "energyLevel"),
+      caption: averageToOutput(averageEnergy, "energyLevel"),
+    },
+  ];
+
+  const summaryData: SummaryCardProps[] = [
+  {
+    title: "Today's Summary",
+    stats: [
+      `Check ins logged: ${todaysCheckIns.length}`,
+      `${averageToOutput(getAverage(todaysCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(todaysCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
+    ],
+  },
+  {
+    title: "Weekly Summary",
+    stats: [
+      `Check ins logged: ${weeklyCheckIns.length}`,
+      `${averageToOutput(getAverage(weeklyCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(weeklyCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
+    ],
+  },
+  {
+    title: "Monthly Summary",
+    stats: [
+      `Check ins logged: ${monthlyCheckIns.length}`,
+      `${averageToOutput(getAverage(monthlyCheckIns, "focusLevel"), "focusLevel")}`,
+      `${averageToOutput(getAverage(monthlyCheckIns, "energyLevel"), "energyLevel")}`,
+      `Current focus timer: ${formatTime(timerSeconds)}`,
+    ],
+  },
+];
 
   useEffect(() => {
     localStorage.setItem("checkIns", JSON.stringify(checkIns));
@@ -137,10 +283,62 @@ function App() {
     return () => window.clearInterval(intervalId);
   }, [isTimerRunning]);
 
+  useEffect(() => {
+    return () => {
+      if (closeNotificationTimerRef.current !== null) {
+        window.clearTimeout(closeNotificationTimerRef.current);
+      }
+
+      if (clearNotificationTimerRef.current !== null) {
+        window.clearTimeout(clearNotificationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showCheckInNotification(message: string) {
+    if (closeNotificationTimerRef.current !== null) {
+      window.clearTimeout(closeNotificationTimerRef.current);
+    }
+
+    if (clearNotificationTimerRef.current !== null) {
+      window.clearTimeout(clearNotificationTimerRef.current);
+    }
+
+    const notificationId = notificationIdRef.current + 1;
+    notificationIdRef.current = notificationId;
+
+    setCheckInNotification({
+      id: notificationId,
+      message,
+      isClosing: false,
+    });
+
+    closeNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return { ...currentNotification, isClosing: true };
+      });
+    }, 2700);
+
+    clearNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return null;
+      });
+    }, 3000);
+  }
+
   function handleAddCheckIn() {
     const newCheckIn: CheckIn = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      hour: new Date().getHours(),
       focusLevel,
       energyLevel,
     };
@@ -156,13 +354,17 @@ function App() {
 
     const randomIndex = Math.floor(Math.random() * messages.length);
 
-    setCheckInMessage(messages[randomIndex]);
-    window.setTimeout(() => setCheckInMessage(""), 3000);
+    showCheckInNotification(messages[randomIndex]);
   }
 
   function handleClearCheckIns() {
     setCheckIns([]);
     localStorage.removeItem("checkIns");
+  }
+
+  function handleLoadDemoData() {
+    setCheckIns(createDemoCheckIns());
+    showCheckInNotification("demo data loaded, have fun!");
   }
 
   function handleStartTimer() {
@@ -216,40 +418,67 @@ function App() {
           </div>
         </div>
 
-        <button className="counter" onClick={handleAddCheckIn}>
-          Add Check-In
-        </button>
+        <div className="button-row">
+          <button className="counter" onClick={handleAddCheckIn}>
+            Add Check-In
+          </button>
 
-        {checkInMessage && (
-          <p className="check-in-message">{checkInMessage}</p>
+          <button className="counter" onClick={handleLoadDemoData}>
+            Load Demo Data
+          </button>
+        </div>
+
+        {checkInNotification && (
+          <p
+            className={`check-in-message${
+              checkInNotification.isClosing ? " check-in-message-closing" : ""
+            }`}
+          >
+            {checkInNotification.message}
+          </p>
         )}
       </section>
 
       <section className="card">
-        <h2>Check-In History</h2>
-
-        {checkIns.length > 0 && (
-          <button className="counter" onClick={handleClearCheckIns}>
-            Clear History
+        <div className="section-header">
+          <h2>Check-In History</h2>
+          <button
+            className="toggle-button counter"
+            onClick={() => setIsHistoryCollapsed((value) => !value)}
+          >
+            {isHistoryCollapsed ? "Show" : "Hide"}
           </button>
-        )}
+        </div>
 
-        {checkIns.length === 0 ? (
-          <p>No check-ins yet. Add your first one above.</p>
-        ) : (
-          <div className="history-list">
-            {checkIns.map((checkIn) => (
-              <div className="history-item" key={checkIn.id}>
-                <p>
-                  <strong>
-                    {new Date(checkIn.createdAt).toLocaleString()}
-                  </strong>
-                </p>
-                <p>Focus: {checkIn.focusLevel}/5</p>
-                <p>Energy: {checkIn.energyLevel}/5</p>
+        {!isHistoryCollapsed && (
+          <>
+            {checkIns.length > 0 && (
+              <button
+                className="counter clear-history-button"
+                onClick={handleClearCheckIns}
+              >
+                Clear History
+              </button>
+            )}
+
+            {checkIns.length === 0 ? (
+              <p>No check-ins yet. Add your first one above.</p>
+            ) : (
+              <div className="history-list">
+                {checkIns.map((checkIn) => (
+                  <div className="history-item" key={checkIn.id}>
+                    <p>
+                      <strong>
+                        {new Date(checkIn.createdAt).toLocaleString()}
+                      </strong>
+                    </p>
+                    <p>Focus: {checkIn.focusLevel}/5</p>
+                    <p>Energy: {checkIn.energyLevel}/5</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
 

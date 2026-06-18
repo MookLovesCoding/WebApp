@@ -48,6 +48,10 @@ header {
   outline-offset: 2px;
 }
 
+.clear-history-button {
+  margin-top: 12px;
+}
+
 /* Check-in sliders */
 
 .slider-group {
@@ -127,6 +131,10 @@ header {
   animation: slide-in 0.3s ease;
 }
 
+.check-in-message-closing {
+  animation: slide-out 0.3s ease forwards;
+}
+
 @keyframes slide-in {
   from {
     opacity: 0;
@@ -136,6 +144,18 @@ header {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 }
 
@@ -195,10 +215,25 @@ header {
   background: var(--accent-background);
 }
 
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  height: 100%;
+}
+
 .bar {
   width: 32px;
   border-radius: 6px 6px 0 0;
   background: var(--accent);
+}
+
+.bar-label {
+  min-height: 18px;
+  font-size: 12px;
+  opacity: 0.75;
 }
 
 .graph-caption {
