@@ -24,3 +24,4 @@ server/data/*.json
 *.njsproj
 *.sln
 *.sw?
+AGENTS.md
