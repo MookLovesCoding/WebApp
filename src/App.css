@@ -17,7 +17,7 @@ header {
   width: 100%;
   padding: 24px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--background);
   box-sizing: border-box;
 }
@@ -41,6 +41,12 @@ header {
 .counter:hover {
   border-color: var(--accent-border);
   transform: translateY(-1px);
+}
+
+.counter:disabled {
+  cursor: wait;
+  opacity: 0.65;
+  transform: none;
 }
 
 .counter:focus-visible {
@@ -100,7 +106,7 @@ header {
 }
 
 .slider::-webkit-slider-thumb:hover {
-  box-shadow: 0 4px 8px rgba(170, 59, 255, 0.3);
+  box-shadow: 0 4px 8px rgba(63, 63, 70, 0.24);
   transform: scale(1.05);
 }
 
@@ -116,10 +122,11 @@ header {
 }
 
 .slider::-moz-range-thumb:hover {
-  box-shadow: 0 4px 8px rgba(170, 59, 255, 0.3);
+  box-shadow: 0 4px 8px rgba(63, 63, 70, 0.24);
   transform: scale(1.05);
 }
 
+.check-in-error,
 .check-in-message {
   margin-top: 16px;
   padding: 12px;
@@ -166,6 +173,7 @@ header {
   color: var(--text-heading);
   font-size: 2.5rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .button-row {
@@ -285,10 +293,18 @@ header {
   margin-top: 16px;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .history-item {
   padding: 12px;
   border-radius: 8px;
-  background: var(--accent-bg);
+  background: var(--accent-background);
   border: 1px solid var(--accent-border);
 }
 

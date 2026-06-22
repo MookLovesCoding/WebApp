@@ -1,17 +1,17 @@
 :root {
-  --text: #6b6375;
-  --text-heading: #08060d;
+  --text: #525252;
+  --text-heading: #111111;
   --background: #ffffff;
-  --border: #e5e4e7;
+  --border: #e5e5e5;
 
-  --accent: #aa3bff;
-  --accent-background: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent: #3f3f46;
+  --accent-background: rgba(63, 63, 70, 0.1);
+  --accent-border: rgba(63, 63, 70, 0.45);
 
   --font-main: system-ui, "Segoe UI", Roboto, sans-serif;
 
   font: 18px/1.45 var(--font-main);
-  letter-spacing: 0.18px;
+  letter-spacing: 0;
   color: var(--text);
   background: var(--background);
   font-synthesis: none;
@@ -22,14 +22,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-heading: #f3f4f6;
-    --background: #16171d;
-    --border: #2e303a;
+    --text: #a3a3a3;
+    --text-heading: #f5f5f5;
+    --background: #171717;
+    --border: #3f3f46;
 
-    --accent: #c084fc;
-    --accent-background: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
+    --accent: #d4d4d8;
+    --accent-background: rgba(212, 212, 216, 0.12);
+    --accent-border: rgba(212, 212, 216, 0.45);
   }
 }
 
@@ -64,14 +64,14 @@ h2 {
 h1 {
   margin: 32px 0;
   font-size: 56px;
-  letter-spacing: -1.68px;
+  letter-spacing: 0;
 }
 
 h2 {
   margin: 0 0 8px;
   font-size: 24px;
   line-height: 1.18;
-  letter-spacing: -0.24px;
+  letter-spacing: 0;
 }
 
 p {

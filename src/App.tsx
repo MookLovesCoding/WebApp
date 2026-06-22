@@ -40,11 +40,17 @@ function loadCheckIns(): CheckIn[] {
     return [];
   }
 
-  try {
-    return JSON.parse(savedCheckIns) as CheckIn[];
-  } catch {
-    return [];
+  return "Something went wrong.";
+}
+
+function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
+  if (checkIns.length === 0) {
+    return null;
   }
+
+  const sum = checkIns.reduce((total, checkIn) => total + checkIn[field], 0);
+
+  return sum / checkIns.length;
 }
 
 function createDemoCheckIns(): CheckIn[] {
@@ -75,10 +81,82 @@ function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
-    2,
-    "0"
-  )}`;
+  return date;
+}
+
+function getStartOfWeek(): Date {
+  const date = getStartOfToday();
+  date.setDate(date.getDate() - date.getDay());
+
+  return date;
+}
+
+function getStartOfMonth(): Date {
+  const date = getStartOfToday();
+  date.setDate(1);
+
+  return date;
+}
+
+function filterCheckInsFromDate(checkIns: CheckIn[], startDate: Date): CheckIn[] {
+  const startTime = startDate.getTime();
+
+  return checkIns.filter(
+    (checkIn) => new Date(checkIn.createdAt).getTime() >= startTime
+  );
+}
+
+function getRatingLabel(field: RatingField): string {
+  return field === "focusLevel" ? "focus" : "energy";
+}
+
+function averageToOutput(average: number | null, field: RatingField): string {
+  if (average === null) {
+    return `Average ${getRatingLabel(field)}: --`;
+  }
+
+  return `Average ${getRatingLabel(field)}: ${average.toFixed(1)}/5`;
+}
+
+function averageToBarHeight(average: number | null): string {
+  if (average === null) {
+    return "0%";
+  }
+
+  return `${(average / 5) * 100}%`;
+}
+
+function getCheckInHour(checkIn: CheckIn): number {
+  return new Date(checkIn.createdAt).getHours();
+}
+
+function formatHour(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+
+  return date.toLocaleTimeString([], { hour: "numeric" });
+}
+
+function getHourlyAverageBars(
+  checkIns: CheckIn[],
+  field: RatingField
+): GraphBar[] {
+  const latestHours = Array.from(
+    new Set(checkIns.map((checkIn) => getCheckInHour(checkIn)))
+  )
+    .slice(0, 8)
+    .sort((firstHour, secondHour) => firstHour - secondHour);
+
+  return latestHours.map((hour) => {
+    const hourlyCheckIns = checkIns.filter(
+      (checkIn) => getCheckInHour(checkIn) === hour
+    );
+
+    return {
+      height: averageToBarHeight(getAverage(hourlyCheckIns, field)),
+      label: formatHour(hour),
+    };
+  });
 }
 
 function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
@@ -276,11 +354,19 @@ function App() {
   useEffect(() => {
     if (!isTimerRunning) return;
 
-    const intervalId = window.setInterval(() => {
-      setTimerSeconds((currentSeconds) => currentSeconds + 1);
-    }, 1000);
+    let animationFrameId = 0;
+    const updateElapsedTime = () => {
+      setTimerMilliseconds(
+        timerBaseMillisecondsRef.current +
+          performance.now() -
+          timerStartedAtRef.current
+      );
+      animationFrameId = window.requestAnimationFrame(updateElapsedTime);
+    };
 
-    return () => window.clearInterval(intervalId);
+    animationFrameId = window.requestAnimationFrame(updateElapsedTime);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, [isTimerRunning]);
 
   useEffect(() => {
@@ -342,24 +428,101 @@ function App() {
       focusLevel,
       energyLevel,
     };
+  }, []);
 
-    setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
+  useEffect(() => {
+    return () => {
+      if (closeNotificationTimerRef.current !== null) {
+        window.clearTimeout(closeNotificationTimerRef.current);
+      }
 
-    const messages: string[] = [
-      `Great check-in! Focus: ${focusLevel}/5, Energy: ${energyLevel}/5 ✓`,
-      `Logged! You're at ${focusLevel} focus and ${energyLevel} energy.`,
-      `Check-in recorded for focus ${focusLevel} and energy ${energyLevel}!`,
-      "Perfect! Your levels are saved.",
-    ];
+      if (clearNotificationTimerRef.current !== null) {
+        window.clearTimeout(clearNotificationTimerRef.current);
+      }
+    };
+  }, []);
 
-    const randomIndex = Math.floor(Math.random() * messages.length);
+  function showCheckInNotification(message: string) {
+    if (closeNotificationTimerRef.current !== null) {
+      window.clearTimeout(closeNotificationTimerRef.current);
+    }
+
+    if (clearNotificationTimerRef.current !== null) {
+      window.clearTimeout(clearNotificationTimerRef.current);
+    }
+
+    const notificationId = notificationIdRef.current + 1;
+    notificationIdRef.current = notificationId;
+
+    setCheckInNotification({
+      id: notificationId,
+      message,
+      isClosing: false,
+    });
+
+    closeNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return { ...currentNotification, isClosing: true };
+      });
+    }, 2700);
+
+    clearNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return null;
+      });
+    }, 3000);
+  }
+
+  async function handleAddCheckIn() {
+    setIsSavingCheckIn(true);
+    setCheckInError("");
+
+    try {
+      const newCheckIn = await createCheckIn({ focusLevel, energyLevel });
+
+      setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
+
+      const messages: string[] = [
+        `Great check-in! Focus: ${focusLevel}/5, Energy: ${energyLevel}/5`,
+        `Logged! You're at ${focusLevel} focus and ${energyLevel} energy.`,
+        `Check-in recorded for focus ${focusLevel} and energy ${energyLevel}!`,
+        "Perfect! Your levels are saved.",
+      ];
+      const randomIndex = Math.floor(Math.random() * messages.length);
+
+      showCheckInNotification(messages[randomIndex]);
+    } catch (error) {
+      setCheckInError(getErrorMessage(error));
+    } finally {
+      setIsSavingCheckIn(false);
+    }
+  }
 
     showCheckInNotification(messages[randomIndex]);
   }
 
-  function handleClearCheckIns() {
-    setCheckIns([]);
-    localStorage.removeItem("checkIns");
+  async function handleLoadDemoData() {
+    setIsLoadingDemoData(true);
+    setCheckInError("");
+
+    try {
+      const demoCheckIns = await createDemoCheckIns();
+
+      setCheckIns(demoCheckIns);
+      showCheckInNotification("Demo data loaded.");
+    } catch (error) {
+      setCheckInError(getErrorMessage(error));
+    } finally {
+      setIsLoadingDemoData(false);
+    }
   }
 
   function handleLoadDemoData() {
@@ -368,16 +531,31 @@ function App() {
   }
 
   function handleStartTimer() {
+    if (isTimerRunning) return;
+
+    timerBaseMillisecondsRef.current = timerMilliseconds;
+    timerStartedAtRef.current = performance.now();
     setIsTimerRunning(true);
   }
 
   function handleStopTimer() {
+    if (!isTimerRunning) return;
+
+    const currentMilliseconds =
+      timerBaseMillisecondsRef.current +
+      performance.now() -
+      timerStartedAtRef.current;
+
+    timerBaseMillisecondsRef.current = currentMilliseconds;
+    setTimerMilliseconds(currentMilliseconds);
     setIsTimerRunning(false);
   }
 
   function handleResetTimer() {
+    timerStartedAtRef.current = 0;
+    timerBaseMillisecondsRef.current = 0;
     setIsTimerRunning(false);
-    setTimerSeconds(0);
+    setTimerMilliseconds(0);
   }
 
   return (
@@ -485,7 +663,7 @@ function App() {
       <section className="card">
         <h2>Timer</h2>
 
-        <p className="timer-display">{formatTime(timerSeconds)}</p>
+        <p className="timer-display">{formatTime(timerMilliseconds)}</p>
 
         <div className="button-row">
           <button className="counter" onClick={handleStartTimer}>
