@@ -1,86 +1,147 @@
 import "./App.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  createCheckIn,
+  createDemoCheckIns,
+  deleteCheckIns,
+  getCheckIns,
+  type CheckIn,
+} from "./checkInsApi";
 
 type SummaryCardProps = {
   title: string;
   stats: string[];
 };
 
+type GraphBar = {
+  height: string;
+  label: string;
+};
+
 type GraphCardProps = {
   title: string;
-  bars: string[];
+  bars: GraphBar[];
   caption: string;
 };
 
-type CheckIn = {
-  id: string;
-  createdAt: string;
-  focusLevel: number;
-  energyLevel: number;
+type RatingField = "energyLevel" | "focusLevel";
+
+type CheckInNotification = {
+  id: number;
+  message: string;
+  isClosing: boolean;
 };
 
-const summaryData: SummaryCardProps[] = [
-  {
-    title: "Today's Summary",
-    stats: [
-      "Average focus: 4",
-      "Average energy: 3",
-      "Total focus time: 45 minutes",
-    ],
-  },
-  {
-    title: "Weekly Summary",
-    stats: [
-      "Average focus: 3.8",
-      "Average energy: 3.2",
-      "Total focus time: 285 minutes",
-    ],
-  },
-  {
-    title: "Monthly Summary",
-    stats: [
-      "Average focus: 3.6",
-      "Average energy: 3.1",
-      "Total focus time: 1200 minutes",
-    ],
-  },
-];
-
-const graphData: GraphCardProps[] = [
-  {
-    title: "Focus by Hour",
-    bars: ["40%", "70%", "55%", "85%", "60%"],
-    caption: "Placeholder chart for average focus levels.",
-  },
-  {
-    title: "Energy by Hour",
-    bars: ["65%", "50%", "75%", "45%", "80%"],
-    caption: "Placeholder chart for average energy levels.",
-  },
-];
-
-function loadCheckIns(): CheckIn[] {
-  const savedCheckIns = localStorage.getItem("checkIns");
-
-  if (!savedCheckIns) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(savedCheckIns) as CheckIn[];
-  } catch {
-    return [];
-  }
-}
-
-function formatTime(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+function formatTime(totalMilliseconds: number): string {
+  const safeMilliseconds = Math.max(0, Math.floor(totalMilliseconds));
+  const minutes = Math.floor(safeMilliseconds / 60000);
+  const seconds = Math.floor((safeMilliseconds % 60000) / 1000);
+  const milliseconds = safeMilliseconds % 1000;
 
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
     2,
     "0"
-  )}`;
+  )}.${String(milliseconds).padStart(3, "0")}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Something went wrong.";
+}
+
+function getAverage(checkIns: CheckIn[], field: RatingField): number | null {
+  if (checkIns.length === 0) {
+    return null;
+  }
+
+  const sum = checkIns.reduce((total, checkIn) => total + checkIn[field], 0);
+
+  return sum / checkIns.length;
+}
+
+function getStartOfToday(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  return date;
+}
+
+function getStartOfWeek(): Date {
+  const date = getStartOfToday();
+  date.setDate(date.getDate() - date.getDay());
+
+  return date;
+}
+
+function getStartOfMonth(): Date {
+  const date = getStartOfToday();
+  date.setDate(1);
+
+  return date;
+}
+
+function filterCheckInsFromDate(checkIns: CheckIn[], startDate: Date): CheckIn[] {
+  const startTime = startDate.getTime();
+
+  return checkIns.filter(
+    (checkIn) => new Date(checkIn.createdAt).getTime() >= startTime
+  );
+}
+
+function getRatingLabel(field: RatingField): string {
+  return field === "focusLevel" ? "focus" : "energy";
+}
+
+function averageToOutput(average: number | null, field: RatingField): string {
+  if (average === null) {
+    return `Average ${getRatingLabel(field)}: --`;
+  }
+
+  return `Average ${getRatingLabel(field)}: ${average.toFixed(1)}/5`;
+}
+
+function averageToBarHeight(average: number | null): string {
+  if (average === null) {
+    return "0%";
+  }
+
+  return `${(average / 5) * 100}%`;
+}
+
+function getCheckInHour(checkIn: CheckIn): number {
+  return new Date(checkIn.createdAt).getHours();
+}
+
+function formatHour(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+
+  return date.toLocaleTimeString([], { hour: "numeric" });
+}
+
+function getHourlyAverageBars(
+  checkIns: CheckIn[],
+  field: RatingField
+): GraphBar[] {
+  const latestHours = Array.from(
+    new Set(checkIns.map((checkIn) => getCheckInHour(checkIn)))
+  )
+    .slice(0, 8)
+    .sort((firstHour, secondHour) => firstHour - secondHour);
+
+  return latestHours.map((hour) => {
+    const hourlyCheckIns = checkIns.filter(
+      (checkIn) => getCheckInHour(checkIn) === hour
+    );
+
+    return {
+      height: averageToBarHeight(getAverage(hourlyCheckIns, field)),
+      label: formatHour(hour),
+    };
+  });
 }
 
 function SummaryCard({ title, stats }: SummaryCardProps) {
@@ -101,13 +162,16 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
       <h2>{title}</h2>
 
       <div className="graph-placeholder">
-        {bars.map((height, index) => (
-          <div
-            key={`${title}-${index}`}
-            className="bar"
-            style={{ height }}
-          ></div>
-        ))}
+        {bars.length === 0 ? (
+          <p className="empty-graph">No data yet.</p>
+        ) : (
+          bars.map((bar) => (
+            <div className="bar-group" key={`${title}-${bar.label}`}>
+              <div className="bar" style={{ height: bar.height }}></div>
+              <span className="bar-label">{bar.label}</span>
+            </div>
+          ))
+        )}
       </div>
 
       <p className="graph-caption">{caption}</p>
@@ -118,64 +182,260 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
 function App() {
   const [focusLevel, setFocusLevel] = useState(3);
   const [energyLevel, setEnergyLevel] = useState(3);
-  const [checkInMessage, setCheckInMessage] = useState("");
-  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [checkInNotification, setCheckInNotification] =
+    useState<CheckInNotification | null>(null);
+  const [timerMilliseconds, setTimerMilliseconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [checkIns, setCheckIns] = useState<CheckIn[]>(loadCheckIns);
+  const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
+  const [isLoadingCheckIns, setIsLoadingCheckIns] = useState(true);
+  const [isSavingCheckIn, setIsSavingCheckIn] = useState(false);
+  const [isLoadingDemoData, setIsLoadingDemoData] = useState(false);
+  const [isClearingCheckIns, setIsClearingCheckIns] = useState(false);
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
+  const [checkInError, setCheckInError] = useState("");
+  const timerStartedAtRef = useRef(0);
+  const timerBaseMillisecondsRef = useRef(0);
+  const notificationIdRef = useRef(0);
+  const closeNotificationTimerRef = useRef<number | null>(null);
+  const clearNotificationTimerRef = useRef<number | null>(null);
+  const isMutatingCheckIns =
+    isSavingCheckIn || isLoadingDemoData || isClearingCheckIns;
 
-  useEffect(() => {
-    localStorage.setItem("checkIns", JSON.stringify(checkIns));
-  }, [checkIns]);
+  const todaysCheckIns = filterCheckInsFromDate(checkIns, getStartOfToday());
+  const weeklyCheckIns = filterCheckInsFromDate(checkIns, getStartOfWeek());
+  const monthlyCheckIns = filterCheckInsFromDate(checkIns, getStartOfMonth());
+  const averageFocus = getAverage(checkIns, "focusLevel");
+  const averageEnergy = getAverage(checkIns, "energyLevel");
+  const graphData: GraphCardProps[] = [
+    {
+      title: "Focus by Hour",
+      bars: getHourlyAverageBars(checkIns, "focusLevel"),
+      caption: averageToOutput(averageFocus, "focusLevel"),
+    },
+    {
+      title: "Energy by Hour",
+      bars: getHourlyAverageBars(checkIns, "energyLevel"),
+      caption: averageToOutput(averageEnergy, "energyLevel"),
+    },
+  ];
+  const summaryData: SummaryCardProps[] = [
+    {
+      title: "Today's Summary",
+      stats: [
+        `Check-ins logged: ${todaysCheckIns.length}`,
+        averageToOutput(getAverage(todaysCheckIns, "focusLevel"), "focusLevel"),
+        averageToOutput(
+          getAverage(todaysCheckIns, "energyLevel"),
+          "energyLevel"
+        ),
+        `Current focus timer: ${formatTime(timerMilliseconds)}`,
+      ],
+    },
+    {
+      title: "Weekly Summary",
+      stats: [
+        `Check-ins logged: ${weeklyCheckIns.length}`,
+        averageToOutput(getAverage(weeklyCheckIns, "focusLevel"), "focusLevel"),
+        averageToOutput(
+          getAverage(weeklyCheckIns, "energyLevel"),
+          "energyLevel"
+        ),
+        `Current focus timer: ${formatTime(timerMilliseconds)}`,
+      ],
+    },
+    {
+      title: "Monthly Summary",
+      stats: [
+        `Check-ins logged: ${monthlyCheckIns.length}`,
+        averageToOutput(getAverage(monthlyCheckIns, "focusLevel"), "focusLevel"),
+        averageToOutput(
+          getAverage(monthlyCheckIns, "energyLevel"),
+          "energyLevel"
+        ),
+        `Current focus timer: ${formatTime(timerMilliseconds)}`,
+      ],
+    },
+  ];
 
   useEffect(() => {
     if (!isTimerRunning) return;
 
-    const intervalId = window.setInterval(() => {
-      setTimerSeconds((currentSeconds) => currentSeconds + 1);
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, [isTimerRunning]);
-
-  function handleAddCheckIn() {
-    const newCheckIn: CheckIn = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      focusLevel,
-      energyLevel,
+    let animationFrameId = 0;
+    const updateElapsedTime = () => {
+      setTimerMilliseconds(
+        timerBaseMillisecondsRef.current +
+          performance.now() -
+          timerStartedAtRef.current
+      );
+      animationFrameId = window.requestAnimationFrame(updateElapsedTime);
     };
 
-    setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
+    animationFrameId = window.requestAnimationFrame(updateElapsedTime);
 
-    const messages: string[] = [
-      `Great check-in! Focus: ${focusLevel}/5, Energy: ${energyLevel}/5 ✓`,
-      `Logged! You're at ${focusLevel} focus and ${energyLevel} energy.`,
-      `Check-in recorded for focus ${focusLevel} and energy ${energyLevel}!`,
-      "Perfect! Your levels are saved.",
-    ];
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [isTimerRunning]);
 
-    const randomIndex = Math.floor(Math.random() * messages.length);
+  useEffect(() => {
+    let isMounted = true;
 
-    setCheckInMessage(messages[randomIndex]);
-    window.setTimeout(() => setCheckInMessage(""), 3000);
+    async function loadCheckIns() {
+      try {
+        setCheckInError("");
+        const savedCheckIns = await getCheckIns();
+
+        if (isMounted) {
+          setCheckIns(savedCheckIns);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setCheckInError(getErrorMessage(error));
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCheckIns(false);
+        }
+      }
+    }
+
+    void loadCheckIns();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (closeNotificationTimerRef.current !== null) {
+        window.clearTimeout(closeNotificationTimerRef.current);
+      }
+
+      if (clearNotificationTimerRef.current !== null) {
+        window.clearTimeout(clearNotificationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function showCheckInNotification(message: string) {
+    if (closeNotificationTimerRef.current !== null) {
+      window.clearTimeout(closeNotificationTimerRef.current);
+    }
+
+    if (clearNotificationTimerRef.current !== null) {
+      window.clearTimeout(clearNotificationTimerRef.current);
+    }
+
+    const notificationId = notificationIdRef.current + 1;
+    notificationIdRef.current = notificationId;
+
+    setCheckInNotification({
+      id: notificationId,
+      message,
+      isClosing: false,
+    });
+
+    closeNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return { ...currentNotification, isClosing: true };
+      });
+    }, 2700);
+
+    clearNotificationTimerRef.current = window.setTimeout(() => {
+      setCheckInNotification((currentNotification) => {
+        if (!currentNotification || currentNotification.id !== notificationId) {
+          return currentNotification;
+        }
+
+        return null;
+      });
+    }, 3000);
   }
 
-  function handleClearCheckIns() {
-    setCheckIns([]);
-    localStorage.removeItem("checkIns");
+  async function handleAddCheckIn() {
+    setIsSavingCheckIn(true);
+    setCheckInError("");
+
+    try {
+      const newCheckIn = await createCheckIn({ focusLevel, energyLevel });
+
+      setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
+
+      const messages: string[] = [
+        `Great check-in! Focus: ${focusLevel}/5, Energy: ${energyLevel}/5`,
+        `Logged! You're at ${focusLevel} focus and ${energyLevel} energy.`,
+        `Check-in recorded for focus ${focusLevel} and energy ${energyLevel}!`,
+        "Perfect! Your levels are saved.",
+      ];
+      const randomIndex = Math.floor(Math.random() * messages.length);
+
+      showCheckInNotification(messages[randomIndex]);
+    } catch (error) {
+      setCheckInError(getErrorMessage(error));
+    } finally {
+      setIsSavingCheckIn(false);
+    }
+  }
+
+  async function handleClearCheckIns() {
+    setIsClearingCheckIns(true);
+    setCheckInError("");
+
+    try {
+      await deleteCheckIns();
+      setCheckIns([]);
+    } catch (error) {
+      setCheckInError(getErrorMessage(error));
+    } finally {
+      setIsClearingCheckIns(false);
+    }
+  }
+
+  async function handleLoadDemoData() {
+    setIsLoadingDemoData(true);
+    setCheckInError("");
+
+    try {
+      const demoCheckIns = await createDemoCheckIns();
+
+      setCheckIns(demoCheckIns);
+      showCheckInNotification("Demo data loaded.");
+    } catch (error) {
+      setCheckInError(getErrorMessage(error));
+    } finally {
+      setIsLoadingDemoData(false);
+    }
   }
 
   function handleStartTimer() {
+    if (isTimerRunning) return;
+
+    timerBaseMillisecondsRef.current = timerMilliseconds;
+    timerStartedAtRef.current = performance.now();
     setIsTimerRunning(true);
   }
 
   function handleStopTimer() {
+    if (!isTimerRunning) return;
+
+    const currentMilliseconds =
+      timerBaseMillisecondsRef.current +
+      performance.now() -
+      timerStartedAtRef.current;
+
+    timerBaseMillisecondsRef.current = currentMilliseconds;
+    setTimerMilliseconds(currentMilliseconds);
     setIsTimerRunning(false);
   }
 
   function handleResetTimer() {
+    timerStartedAtRef.current = 0;
+    timerBaseMillisecondsRef.current = 0;
     setIsTimerRunning(false);
-    setTimerSeconds(0);
+    setTimerMilliseconds(0);
   }
 
   return (
@@ -216,47 +476,87 @@ function App() {
           </div>
         </div>
 
-        <button className="counter" onClick={handleAddCheckIn}>
-          Add Check-In
-        </button>
+        <div className="button-row">
+          <button
+            className="counter"
+            disabled={isMutatingCheckIns}
+            onClick={handleAddCheckIn}
+          >
+            {isSavingCheckIn ? "Saving..." : "Add Check-In"}
+          </button>
 
-        {checkInMessage && (
-          <p className="check-in-message">{checkInMessage}</p>
+          <button
+            className="counter"
+            disabled={isMutatingCheckIns}
+            onClick={handleLoadDemoData}
+          >
+            {isLoadingDemoData ? "Loading..." : "Load Demo Data"}
+          </button>
+        </div>
+
+        {checkInError && <p className="check-in-error">{checkInError}</p>}
+
+        {checkInNotification && (
+          <p
+            className={`check-in-message${
+              checkInNotification.isClosing ? " check-in-message-closing" : ""
+            }`}
+          >
+            {checkInNotification.message}
+          </p>
         )}
       </section>
 
       <section className="card">
-        <h2>Check-In History</h2>
-
-        {checkIns.length > 0 && (
-          <button className="counter" onClick={handleClearCheckIns}>
-            Clear History
+        <div className="section-header">
+          <h2>Check-In History</h2>
+          <button
+            className="toggle-button counter"
+            onClick={() => setIsHistoryCollapsed((value) => !value)}
+          >
+            {isHistoryCollapsed ? "Show" : "Hide"}
           </button>
-        )}
+        </div>
 
-        {checkIns.length === 0 ? (
-          <p>No check-ins yet. Add your first one above.</p>
-        ) : (
-          <div className="history-list">
-            {checkIns.map((checkIn) => (
-              <div className="history-item" key={checkIn.id}>
-                <p>
-                  <strong>
-                    {new Date(checkIn.createdAt).toLocaleString()}
-                  </strong>
-                </p>
-                <p>Focus: {checkIn.focusLevel}/5</p>
-                <p>Energy: {checkIn.energyLevel}/5</p>
+        {!isHistoryCollapsed && (
+          <>
+            {checkIns.length > 0 && (
+              <button
+                className="counter clear-history-button"
+                disabled={isMutatingCheckIns}
+                onClick={handleClearCheckIns}
+              >
+                {isClearingCheckIns ? "Clearing..." : "Clear History"}
+              </button>
+            )}
+
+            {isLoadingCheckIns ? (
+              <p>Loading check-ins...</p>
+            ) : checkIns.length === 0 ? (
+              <p>No check-ins yet. Add your first one above.</p>
+            ) : (
+              <div className="history-list">
+                {checkIns.map((checkIn) => (
+                  <div className="history-item" key={checkIn.id}>
+                    <p>
+                      <strong>
+                        {new Date(checkIn.createdAt).toLocaleString()}
+                      </strong>
+                    </p>
+                    <p>Focus: {checkIn.focusLevel}/5</p>
+                    <p>Energy: {checkIn.energyLevel}/5</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
 
       <section className="card">
         <h2>Timer</h2>
 
-        <p className="timer-display">{formatTime(timerSeconds)}</p>
+        <p className="timer-display">{formatTime(timerMilliseconds)}</p>
 
         <div className="button-row">
           <button className="counter" onClick={handleStartTimer}>

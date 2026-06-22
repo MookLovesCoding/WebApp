@@ -1,16 +1,31 @@
-# React + Vite
+# FocusFlow
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+FocusFlow is a small React/Vite app for logging focus and energy check-ins, viewing recent history, and running a focus timer.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install dependencies:
 
-## React Compiler
+```sh
+npm install
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Start the frontend and local API together:
 
-## Expanding the ESLint configuration
+```sh
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The web app runs on `http://localhost:5173` and proxies API calls to the local Node server on `http://localhost:5174`.
+
+## Scripts
+
+- `npm run dev` starts Vite and the local API server together.
+- `npm run dev:web` starts only the Vite frontend.
+- `npm run dev:api` starts only the local API server.
+- `npm run build` creates a production frontend build.
+- `npm run lint` runs ESLint.
+
+## Local Data
+
+Check-ins are persisted by the API server to `server/data/check-ins.json`. That file is ignored by Git so local history stays local.
