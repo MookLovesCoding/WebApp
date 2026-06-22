@@ -138,6 +138,10 @@ header {
   animation: slide-in 0.3s ease;
 }
 
+.check-in-error {
+  color: var(--text-heading);
+}
+
 .check-in-message-closing {
   animation: slide-out 0.3s ease forwards;
 }
@@ -242,6 +246,10 @@ header {
   min-height: 18px;
   font-size: 12px;
   opacity: 0.75;
+}
+
+.empty-graph {
+  align-self: center;
 }
 
 .graph-caption {
