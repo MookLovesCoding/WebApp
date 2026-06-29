@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 import { HttpError } from "./http.js";

@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { createClerkClient } from "@clerk/backend";
 import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 import { HttpError } from "./http.js";
