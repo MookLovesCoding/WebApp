@@ -1,5 +1,6 @@
 import "./App.css";
 import { useEffect, useRef, useState } from "react";
+import { SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/react";
 import {
   createCheckIn,
   createDemoCheckIns,
@@ -7,6 +8,12 @@ import {
   getCheckIns,
   type CheckIn,
 } from "./checkInsApi";
+import {
+  createGuestCheckIn,
+  createGuestDemoCheckIns,
+  deleteGuestCheckIns,
+  getGuestCheckIns,
+} from "./localCheckIns";
 
 type SummaryCardProps = {
   title: string;
@@ -31,6 +38,8 @@ type CheckInNotification = {
   message: string;
   isClosing: boolean;
 };
+
+const GUEST_MODE_KEY = "focusflow.guestMode";
 
 function formatTime(totalMilliseconds: number): string {
   const safeMilliseconds = Math.max(0, Math.floor(totalMilliseconds));
@@ -179,7 +188,48 @@ function GraphCard({ title, bars, caption }: GraphCardProps) {
   );
 }
 
+type AuthGateProps = {
+  isAuthLoaded: boolean;
+  onContinueAsGuest: () => void;
+};
+
+function AuthGate({ isAuthLoaded, onContinueAsGuest }: AuthGateProps) {
+  return (
+    <div className="auth-gate" role="dialog" aria-modal="true">
+      <div className="auth-gate-panel">
+        <p className="auth-gate-label">FocusFlow</p>
+        <h2>Choose how to continue</h2>
+        <p className="auth-gate-copy">
+          Sign in to sync your check-ins, or keep them only on this device.
+        </p>
+
+        {isAuthLoaded ? (
+          <div className="auth-gate-actions">
+            <SignInButton mode="modal">
+              <button className="counter">Sign In</button>
+            </SignInButton>
+
+            <SignUpButton mode="modal">
+              <button className="counter">Sign Up</button>
+            </SignUpButton>
+          </div>
+        ) : (
+          <p className="auth-gate-loading">Loading sign-in options...</p>
+        )}
+
+        <button className="guest-mode-button" onClick={onContinueAsGuest}>
+          Continue as guest (Local Storage only)
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const [isGuestMode, setIsGuestMode] = useState(
+    () => window.localStorage.getItem(GUEST_MODE_KEY) === "enabled"
+  );
   const [focusLevel, setFocusLevel] = useState(3);
   const [energyLevel, setEnergyLevel] = useState(3);
   const [checkInNotification, setCheckInNotification] =
@@ -200,6 +250,11 @@ function App() {
   const clearNotificationTimerRef = useRef<number | null>(null);
   const isMutatingCheckIns =
     isSavingCheckIn || isLoadingDemoData || isClearingCheckIns;
+  const isUsingGuestStorage = isGuestMode && !isSignedIn;
+  const canUseCheckIns = Boolean(isSignedIn) || isUsingGuestStorage;
+  const shouldShowAuthGate = !canUseCheckIns;
+  const areCheckInActionsDisabled =
+    !canUseCheckIns || isMutatingCheckIns;
 
   const todaysCheckIns = filterCheckInsFromDate(checkIns, getStartOfToday());
   const weeklyCheckIns = filterCheckInsFromDate(checkIns, getStartOfWeek());
@@ -279,9 +334,28 @@ function App() {
     let isMounted = true;
 
     async function loadCheckIns() {
+      if (isUsingGuestStorage) {
+        setCheckIns(getGuestCheckIns());
+        setCheckInError("");
+        setIsLoadingCheckIns(false);
+        return;
+      }
+
+      if (!isAuthLoaded) {
+        return;
+      }
+
+      if (!isSignedIn) {
+        setCheckIns([]);
+        setCheckInError("");
+        setIsLoadingCheckIns(false);
+        return;
+      }
+
       try {
         setCheckInError("");
-        const savedCheckIns = await getCheckIns();
+        setIsLoadingCheckIns(true);
+        const savedCheckIns = await getCheckIns(getToken);
 
         if (isMounted) {
           setCheckIns(savedCheckIns);
@@ -302,7 +376,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [getToken, isAuthLoaded, isSignedIn, isUsingGuestStorage]);
 
   useEffect(() => {
     return () => {
@@ -356,11 +430,15 @@ function App() {
   }
 
   async function handleAddCheckIn() {
+    if (!canUseCheckIns) return;
+
     setIsSavingCheckIn(true);
     setCheckInError("");
 
     try {
-      const newCheckIn = await createCheckIn({ focusLevel, energyLevel });
+      const newCheckIn = isUsingGuestStorage
+        ? createGuestCheckIn({ focusLevel, energyLevel })
+        : await createCheckIn({ focusLevel, energyLevel }, getToken);
 
       setCheckIns((currentCheckIns) => [newCheckIn, ...currentCheckIns]);
 
@@ -381,11 +459,18 @@ function App() {
   }
 
   async function handleClearCheckIns() {
+    if (!canUseCheckIns) return;
+
     setIsClearingCheckIns(true);
     setCheckInError("");
 
     try {
-      await deleteCheckIns();
+      if (isUsingGuestStorage) {
+        deleteGuestCheckIns();
+      } else {
+        await deleteCheckIns(getToken);
+      }
+
       setCheckIns([]);
     } catch (error) {
       setCheckInError(getErrorMessage(error));
@@ -395,11 +480,15 @@ function App() {
   }
 
   async function handleLoadDemoData() {
+    if (!canUseCheckIns) return;
+
     setIsLoadingDemoData(true);
     setCheckInError("");
 
     try {
-      const demoCheckIns = await createDemoCheckIns();
+      const demoCheckIns = isUsingGuestStorage
+        ? createGuestDemoCheckIns()
+        : await createDemoCheckIns(getToken);
 
       setCheckIns(demoCheckIns);
       showCheckInNotification("Demo data loaded.");
@@ -408,6 +497,14 @@ function App() {
     } finally {
       setIsLoadingDemoData(false);
     }
+  }
+
+  function handleContinueAsGuest() {
+    window.localStorage.setItem(GUEST_MODE_KEY, "enabled");
+    setIsGuestMode(true);
+    setCheckInError("");
+    setCheckIns(getGuestCheckIns());
+    setIsLoadingCheckIns(false);
   }
 
   function handleStartTimer() {
@@ -439,10 +536,34 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <>
+      <main className="app" aria-hidden={shouldShowAuthGate}>
       <header>
-        <h1>FocusFlow</h1>
-        <p>Track your focus and energy throughout the day.</p>
+        <div className="header-content">
+          <div>
+            <h1>FocusFlow</h1>
+            <p>Track your focus and energy throughout the day.</p>
+          </div>
+
+          <div className="auth-actions">
+            {!isAuthLoaded ? null : isSignedIn ? (
+              <UserButton />
+            ) : isGuestMode ? (
+              <>
+                <span className="storage-mode-pill">Guest mode</span>
+                <SignInButton mode="modal">
+                  <button className="counter">Sign In</button>
+                </SignInButton>
+
+                <SignUpButton mode="modal">
+                  <button className="counter">Sign Up</button>
+                </SignUpButton>
+              </>
+            ) : (
+              <span className="storage-mode-pill">Choose sign-in option</span>
+            )}
+          </div>
+        </div>
       </header>
 
       <section className="card">
@@ -479,7 +600,7 @@ function App() {
         <div className="button-row">
           <button
             className="counter"
-            disabled={isMutatingCheckIns}
+            disabled={areCheckInActionsDisabled}
             onClick={handleAddCheckIn}
           >
             {isSavingCheckIn ? "Saving..." : "Add Check-In"}
@@ -487,7 +608,7 @@ function App() {
 
           <button
             className="counter"
-            disabled={isMutatingCheckIns}
+            disabled={areCheckInActionsDisabled}
             onClick={handleLoadDemoData}
           >
             {isLoadingDemoData ? "Loading..." : "Load Demo Data"}
@@ -523,7 +644,7 @@ function App() {
             {checkIns.length > 0 && (
               <button
                 className="counter clear-history-button"
-                disabled={isMutatingCheckIns}
+                disabled={areCheckInActionsDisabled}
                 onClick={handleClearCheckIns}
               >
                 {isClearingCheckIns ? "Clearing..." : "Clear History"}
@@ -594,6 +715,13 @@ function App() {
         ))}
       </section>
     </main>
+      {shouldShowAuthGate && (
+        <AuthGate
+          isAuthLoaded={isAuthLoaded}
+          onContinueAsGuest={handleContinueAsGuest}
+        />
+      )}
+    </>
   );
 }
 

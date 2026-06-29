@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "node server/dev.mjs",
+    "dev:vercel": "npx vercel dev",
     "dev:web": "vite",
     "dev:api": "node server/index.mjs",
+    "db:check": "node scripts/check-db.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/backend": "^3.8.2",
+    "@clerk/react": "^6.10.4",
+    "@neondatabase/serverless": "^1.1.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

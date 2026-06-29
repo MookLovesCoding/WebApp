@@ -25,3 +25,5 @@ server/data/*.json
 *.sln
 *.sw?
 AGENTS.md
+.vercel
+.env*
