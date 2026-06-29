@@ -1,6 +1,6 @@
 import { createClerkClient } from "@clerk/backend";
 import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
-import { HttpError } from "./http";
+import { HttpError } from "./http.js";
 
 let clerkClient: ReturnType<typeof createClerkClient> | null = null;
 
@@ -77,9 +77,11 @@ function createHeaders(headers: IncomingHttpHeaders): Headers {
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        webHeaders.append(name, item);
+        if (typeof item === "string") {
+          webHeaders.append(name, item);
+        }
       }
-    } else {
+    } else if (typeof value === "string") {
       webHeaders.set(name, value);
     }
   }

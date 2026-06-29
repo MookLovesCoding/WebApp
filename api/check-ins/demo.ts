@@ -1,5 +1,5 @@
-import { requireUserId } from "../_lib/auth";
-import { replaceWithDemoCheckIns } from "../_lib/checkIns";
+import { requireUserId } from "../_lib/auth.js";
+import { replaceWithDemoCheckIns } from "../_lib/checkIns.js";
 import {
   sendError,
   sendJson,
@@ -7,7 +7,7 @@ import {
   sendOptions,
   type ApiRequest,
   type ApiResponse,
-} from "../_lib/http";
+} from "../_lib/http.js";
 
 export default async function handler(
   request: ApiRequest,

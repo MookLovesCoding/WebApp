@@ -5,7 +5,7 @@ import {
   sendOptions,
   type ApiRequest,
   type ApiResponse,
-} from "./_lib/http";
+} from "./_lib/http.js";
 
 export default function handler(request: ApiRequest, response: ApiResponse) {
   try {
