@@ -55,6 +55,42 @@ body {
   box-sizing: border-box;
 }
 
+.startup-error {
+  width: min(100%, 720px);
+  margin: auto;
+}
+
+.startup-error-card {
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  box-shadow: 0 18px 60px rgba(24, 24, 27, 0.12);
+}
+
+.startup-error-card h1 {
+  margin: 0 0 16px;
+  font-size: 32px;
+}
+
+.startup-error-card p + p {
+  margin-top: 12px;
+}
+
+.startup-error-card code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--accent-background);
+  color: var(--text-heading);
+}
+
+.startup-error-label {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 h1,
 h2 {
   color: var(--text-heading);
